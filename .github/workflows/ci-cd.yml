@@ -1,0 +1,60 @@
+name: Palette Lab API CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    name: API
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Ruff check
+        run: ruff check .
+
+      - name: Ruff format check
+        run: ruff format --check .
+
+      - name: Pytest
+        run: pytest -q
+
+  deploy:
+    name: Deploy a Dokploy
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [api]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via Dokploy API
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            echo "Deploying palette-lab-api via Dokploy API..."
+            curl -X POST 'http://localhost:3000/api/application.deploy' \
+              -H 'Content-Type: application/json' \
+              -H 'x-api-key: ${{ secrets.DOKPLOY_API_TOKEN }}' \
+              -d '{"applicationId": "${{ secrets.DOKPLOY_APP_ID }}"}'
+            echo "Deploy complete!"
