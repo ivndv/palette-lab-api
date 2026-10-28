@@ -1,123 +1,95 @@
 # Palette Lab API
 
-Microservicio de interpretación de paletas con IA para **Palette Lab**.
+## Descripción
 
-Recibe una descripción en lenguaje natural y devuelve una receta válida:
+Microservicio de interpretación de paletas con IA para **Palette Lab**. Recibe una descripción en lenguaje natural y devuelve una receta de color válida —base, armonía, tono y etiqueta— que el frontend convierte en una paleta de cinco colores.
+
+Existe para aislar la clave de Groq del navegador y del BFF: la credencial de IA nunca sale de este servicio. La IA **no genera la paleta completa**; solo elige la receta, y el motor determinista de Palette Lab deriva los cinco colores.
+
+## Características
+
+- **Interpretación en lenguaje natural**: acepta descripciones en español o inglés y devuelve siempre una receta JSON válida.
+- **Contrato cerrado**: armonías y tonos son enumerados fijos; el frontend nunca recibe un valor desconocido.
+- **Salida validada**: la respuesta del modelo pasa por Pydantic antes de salir, sin reenviar JSON crudo.
+- **Cache por prompt**: el mismo texto devuelve la misma receta sin gastar cuota de Groq.
+- **Rate limiting en tres niveles**: por minuto, por día y global diario.
+- **Degradación limpia**: si Upstash no responde, cache y límites caen a memoria.
+- **Autenticación simple**: secreto compartido en el header `X-API-Key`.
+- **Salud ultraligera**: `/health` no toca base de datos ni IA.
+- **Errores explícitos**: cada fallo del proveedor se traduce a un código HTTP concreto.
+- **Tests sin cuota**: la IA va mockeada en pytest.
+
+## Secciones
+
+1. **Salud** (`GET /health`): responde `{"status":"ok"}` sin dependencias externas.
+2. **Interpretación** (`POST /interpret`): recibe un prompt y devuelve la receta de paleta.
+3. **Documentación automática** (`/docs`): Swagger generado por FastAPI.
+
+### Endpoints
+
+| Método | Ruta | Qué hace |
+|---|---|---|
+| `GET` | `/health` | `{ "status": "ok" }` |
+| `POST` | `/interpret` | Recibe `{ "prompt": "..." }` y devuelve la receta |
+
+### Códigos de error
+
+| Código | Causa |
+|---|---|
+| `400` | Prompt vacío o mayor a `MAX_PROMPT_LENGTH` (240) |
+| `401` | `X-API-Key` ausente o incorrecta |
+| `429` | Límite propio superado o cuota de Groq agotada |
+| `502` | Groq rechazó la petición o la receta no valida |
+| `503` | No se pudo conectar con Groq |
+| `504` | Groq tardó más que `GROQ_TIMEOUT_SECONDS` |
+
+## Uso
+
+El consumidor único es el BFF de Palette Lab (`functions/api/interpret.ts`), que llama desde el servidor:
+
+```bash
+curl -X POST http://localhost:8010/interpret \
+  -H "X-API-Key: tu_secreto" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "atardecer en la playa"}'
+```
 
 ```json
 {
   "base": "#b45309",
   "mode": "analogous",
   "tone": "muted",
-  "label": "café cálido"
+  "label": "atardecer cálido"
 }
 ```
 
-La IA **no genera la paleta completa**. Solo elige el color base, la armonía y el tono; el motor determinista de Palette Lab genera los cinco colores.
+- **`base`**: color HEX en minúsculas.
+- **`mode`**: `analogous`, `complementary`, `triadic`, `monochrome` o `random`.
+- **`tone`**: `balanced`, `pastel`, `vivid`, `muted`, `dark` o `light`.
+- **`label`**: descripción corta en español, máximo 60 caracteres.
 
-## Stack
+Si `PALETTE_LAB_API_KEY` está vacío, el header no se exige. Eso es solo para desarrollo local: en producción debe estar configurado.
 
-- FastAPI + Uvicorn
-- Pydantic v2 + pydantic-settings
-- Groq vía SDK de OpenAI
-- Docker
-- pytest + ruff
+## Tecnologías Utilizadas
 
-## Endpoints
+- **Framework**: FastAPI + Uvicorn
+- **Configuración**: Pydantic v2 + pydantic-settings
+- **IA**: Groq vía SDK de OpenAI, modelo `openai/gpt-oss-20b`
+- **Cache y límites**: Upstash Redis (`upstash-ratelimit`) con fallback en memoria
+- **Validación**: Pydantic antes de cada respuesta
+- **Testing**: pytest, IA mockeada
+- **Lint & Formato**: ruff
+- **Herramientas**: Python 3.13, uv, Docker
+- **Infra & CI/CD**: Docker, Dokploy, GitHub Actions
 
-- `GET /health` → `{"status":"ok"}`
-- `POST /interpret` → receta de paleta
-  - Header `X-API-Key` si `PALETTE_LAB_API_KEY` está configurado
-  - Body: `{"prompt":"café artesanal"}`
-  - Errores: `400`, `401`, `429`, `502`, `503`, `504`
+## Despliegue
 
-## Desarrollo local
+El servicio se encuentra desplegado en **Dokploy** y se publica a través de Cloudflare Tunnel. Puedes consultarlo directamente aquí: [api-palettelab.fluxdv.icu](https://api-palettelab.fluxdv.icu/)
 
-```bash
-make install
-cp .env.example .env
-# Opción A: rellena GROQ_API_KEY en .env
-make dev
+## Licencia
 
-# Opción B: sin Groq, con recetas mock
-MOCK_AI=true make dev
-```
+Licencia de Uso Personal:
 
-Swagger: `http://localhost:8010/docs`
+Este software es propiedad de **Ivan Cruz**. Se permite el uso de este software solo para fines personales y no comerciales. No se permite la distribución, modificación ni uso comercial de este software sin el consentimiento expreso de **Ivan Cruz**.
 
-## Tests
-
-```bash
-make test
-```
-
-Los tests mockean la IA: nunca gastan cuota de Groq.
-
-## Docker
-
-```bash
-make docker-build
-make docker-run
-```
-
-El contenedor escucha en `8000`; con `make docker-run` queda publicado en `8010` para no chocar con `codebook-api`. Expone `GET /health` para el healthcheck.
-
-## Variables de entorno
-
-| Variable | Descripción |
-|---|---|
-| `GROQ_API_KEY` | Clave de Groq. Solo vive en este servicio. |
-| `PALETTE_LAB_API_KEY` | Secreto compartido con el BFF. Si está vacío, no se exige. |
-| `RATE_LIMIT_PER_MIN` | Peticiones por minuto. Default `10`. |
-| `RATE_LIMIT_PER_DAY` | Peticiones por día. Default `100`. |
-| `ALLOWED_ORIGINS` | Orígenes CORS separados por coma. |
-| `MOCK_AI` | Solo local: devuelve recetas fijas sin llamar a Groq. |
-| `CACHE_ENABLED` | Activa el cache de respuestas. Default `true`. |
-| `CACHE_TTL_SECONDS` | Vida del cache. Default `86400` (24 h). |
-| `CACHE_MAX_ENTRIES` | Máximo de prompts cacheados en memoria. Default `500`. |
-| `UPSTASH_REDIS_REST_URL` | URL REST de Upstash. |
-| `UPSTASH_REDIS_REST_TOKEN` | Token REST de Upstash. |
-| `UPSTASH_TIMEOUT_SECONDS` | Timeout de Upstash. Default `1.5`. |
-| `APP_NAMESPACE` | Prefijo de llaves. Default `palette`. |
-| `APP_ENV` | `local`, `staging` o `production`. |
-| `CACHE_BACKEND` | `memory` o `upstash`. Default `memory`. |
-| `RATE_LIMIT_BACKEND` | `memory` o `upstash`. Default `memory`. |
-| `RATE_LIMIT_GLOBAL_PER_DAY` | Límite global diario. Default `800`. |
-
-## Cache y rate limit
-
-Las respuestas exitosas se cachean por hash del prompt normalizado:
-
-- Mismo prompt → misma receta, sin llamar a Groq.
-- TTL de 24 horas.
-- En memoria o Upstash REST.
-- Si Upstash falla, se usa memoria como fallback.
-- Upstash también guarda los contadores del rate limit.
-
-El rate limit usa el SDK oficial `upstash-ratelimit` con ventanas deslizantes:
-
-- 10 por minuto.
-- 100 por día por IP.
-- 800 por día global.
-
-Prefijos:
-
-```text
-palette:<env>:rl:minuto:<ip>
-palette:<env>:rl:dia:<ip>
-palette:<env>:rl:global
-palette:<env>:cache:recipe:<sha256>
-```
-
-Para producción con Upstash:
-
-```env
-UPSTASH_REDIS_REST_URL=https://...
-UPSTASH_REDIS_REST_TOKEN=...
-APP_NAMESPACE=palette
-APP_ENV=production
-CACHE_BACKEND=upstash
-RATE_LIMIT_BACKEND=upstash
-```
-
-El system prompt está en inglés y acepta descripciones en español o inglés. La etiqueta se devuelve en español.
+Cualquier uso no autorizado puede resultar en acciones legales.
