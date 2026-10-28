@@ -8,3 +8,9 @@ htmlcov
 .env
 .env.*
 !.env.example
+
+
+# codegraph
+/.codegraph/
+
+docs/
