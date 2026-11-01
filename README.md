@@ -79,17 +79,15 @@ Si `PALETTE_LAB_API_KEY` está vacío, el header no se exige. Eso es solo para d
 - **Validación**: Pydantic antes de cada respuesta
 - **Testing**: pytest, IA mockeada
 - **Lint & Formato**: ruff
-- **Herramientas**: Python 3.13, uv, Docker
+- **Herramientas**: Python 3, uv, Docker
 - **Infra & CI/CD**: Docker, Dokploy, GitHub Actions
 
 ## Despliegue
 
-El servicio se encuentra desplegado en **Dokploy** y se publica a través de Cloudflare Tunnel. Puedes consultarlo directamente aquí: [api-palettelab.fluxdv.icu](https://api-palettelab.fluxdv.icu/)
+El servicio se encuentra desplegado en **Dokploy** y se publica a través de Cloudflare Tunnel. Puedes consultar la documentación aquí: [Palette Lab API](https://api-palettelab.fluxdv.icu/docs)
 
 ## Licencia
 
-Licencia de Uso Personal:
+[PolyForm Noncommercial 1.0.0](LICENSE). Uso personal y no comercial; el uso comercial requiere permiso.
 
-Este software es propiedad de **Ivan Cruz**. Se permite el uso de este software solo para fines personales y no comerciales. No se permite la distribución, modificación ni uso comercial de este software sin el consentimiento expreso de **Ivan Cruz**.
-
-Cualquier uso no autorizado puede resultar en acciones legales.
+© 2026 Ivan Cruz
