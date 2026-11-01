@@ -45,16 +45,20 @@ jobs:
     needs: [api]
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy via Dokploy API
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          script: |
-            echo "Deploying palette-lab-api via Dokploy API..."
-            curl -X POST 'http://localhost:3000/api/application.deploy' \
-              -H 'Content-Type: application/json' \
-              -H 'x-api-key: ${{ secrets.DOKPLOY_API_TOKEN }}' \
-              -d '{"applicationId": "${{ secrets.DOKPLOY_APP_ID }}"}'
-            echo "Deploy complete!"
+      # Dispara el deploy en Dokploy vía webhook autenticado
+      - name: Deploy via Dokploy webhook (Cloudflare Access)
+        env:
+          DOKPLOY_DEPLOY_TOKEN: ${{ secrets.DOKPLOY_DEPLOY_TOKEN }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          curl --fail --show-error --silent \
+            -X POST "https://dokploy.fluxdv.icu/api/deploy/${DOKPLOY_DEPLOY_TOKEN}" \
+            -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
+            -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
+            -H "x-github-event: push" \
+            -H "content-type: application/json" \
+            -d '{"ref":"refs/heads/main","commits":[{"added":[],"modified":["README.md"],"removed":[]}],"head_commit":{"message":"Deploy from CI"}}'
+          echo
+          echo "Deploy solicitado a Dokploy."
