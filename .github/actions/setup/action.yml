@@ -1,0 +1,29 @@
+# Action compuesta: configura Python con caché de pip e instala dependencias
+name: Setup Python env
+description: Configura Python, la caché de pip e instala las dependencias del proyecto
+
+inputs:
+  # Versión centralizada del pipeline
+  python-version:
+    description: Versión de Python a utilizar
+    required: false
+    default: "3.13"
+  requirements-file:
+    description: Archivo de dependencias a instalar
+    required: false
+    default: "requirements-dev.txt"
+
+runs:
+  using: composite
+  steps:
+    # 1. Configura Python y la caché de pip (clave derivada de requirements)
+    - name: Setup Python
+      uses: actions/setup-python@v7
+      with:
+        python-version: ${{ inputs.python-version }}
+        cache: pip
+
+    # 2. Instala las dependencias del proyecto
+    - name: Install dependencies
+      shell: bash
+      run: pip install -r ${{ inputs.requirements-file }}

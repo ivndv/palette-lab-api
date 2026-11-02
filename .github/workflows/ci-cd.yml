@@ -6,9 +6,10 @@ on:
   pull_request:
     branches: [main, develop]
 
+# Cancela ejecuciones previas del mismo ref, excepto deploys en main
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -17,18 +18,16 @@ jobs:
   api:
     name: API
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      # Python + caché de pip + dependencias
+      - name: Setup Python env
+        uses: ./.github/actions/setup
         with:
           python-version: "3.13"
-          cache: pip
-
-      - name: Install dependencies
-        run: pip install -r requirements-dev.txt
 
       - name: Ruff check
         run: ruff check .
@@ -44,6 +43,7 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: [api]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       # Dispara el deploy en Dokploy vía webhook autenticado
       - name: Deploy via Dokploy webhook (Cloudflare Access)
@@ -54,6 +54,7 @@ jobs:
         run: |
           set -euo pipefail
           curl --fail --show-error --silent \
+            --retry 3 --retry-delay 5 --retry-connrefused \
             -X POST "https://dokploy.fluxdv.icu/api/deploy/${DOKPLOY_DEPLOY_TOKEN}" \
             -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
             -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
