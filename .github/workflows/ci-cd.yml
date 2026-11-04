@@ -63,3 +63,9 @@ jobs:
             -d '{"ref":"refs/heads/main","commits":[{"added":[],"modified":["README.md"],"removed":[]}],"head_commit":{"message":"Deploy from CI"}}'
           echo
           echo "Deploy solicitado a Dokploy."
+
+  # ---------------------------------------------------------------------------
+  # Escaneo de secretos. Workflow reutilizable definido en ivndv/.github
+  # ---------------------------------------------------------------------------
+  gitleaks:
+    uses: ivndv/.github/.github/workflows/gitleaks.yml@main
