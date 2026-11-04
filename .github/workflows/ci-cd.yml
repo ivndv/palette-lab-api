@@ -17,7 +17,7 @@ permissions:
 jobs:
   api:
     name: API
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, arm64]
     timeout-minutes: 15
     steps:
       - name: Checkout
@@ -42,7 +42,7 @@ jobs:
     name: Deploy a Dokploy
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: [api]
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, arm64]
     timeout-minutes: 10
     steps:
       # Dispara el deploy en Dokploy vía webhook autenticado
